@@ -1,46 +1,46 @@
 # EGovPay.Net
 
-An **unofficial**, community-shaped .NET / C# client library for the [eGovPay](https://egovpay.gov.ph) government payment gateway (Philippines), built with the same ergonomics as the [Stripe .NET SDK](https://github.com/stripe/stripe-dotnet): a single `EGovPayClient`, resource-scoped services (`client.PaymentIntents`, `client.CheckoutSessions`, ...), strongly-typed request/response models, automatic retries, and webhook signature verification.
+An unofficial .NET client for [eGovPay](https://egovpay.gov.ph), the Philippine government payment gateway. It's shaped after the [Stripe .NET SDK](https://github.com/stripe/stripe-dotnet) on purpose — a single `EGovPayClient`, resource services (`client.PaymentIntents`, `client.CheckoutSessions`, ...), typed models, retries, and webhook verification.
 
-## ⚠️ Read this before you use it
+## Why "unofficial" and why the warnings below
 
-**eGovPay does not publish a public API reference.** Its `/developers` page is a JS app gated behind an approved [eGov API Developer Portal](https://platforms.e.gov.ph) account — administrator approval, a use-case review, and a signed data-sharing agreement are required just to see the docs. I could not access real endpoint paths, request/response schemas, error formats, or the webhook signing scheme.
+eGovPay doesn't have a public API reference. The `/developers` page on their site is locked behind the [eGov API Developer Portal](https://platforms.e.gov.ph), which needs administrator approval, a use-case review, and a signed data-sharing agreement before you can even read the docs. I don't have that access, so I couldn't verify the actual endpoints, payloads, error shapes, or webhook signing scheme.
 
-So this library is a **scaffold, not a finished integration**:
+What I *could* verify is the OAuth exchange — eGovPay shares its authentication layer with the rest of the eGov API platform (SSO, eVerify, eMessage, etc.), and that flow is documented publicly at `e.gov.ph/developers`. Everything else here is a best guess modeled on how Stripe does it, clearly marked so you know what to check before relying on it:
 
 | Piece | Status |
 |---|---|
-| OAuth token exchange (`partner_code`/`partner_secret` → bearer token) | ✅ Confirmed against the publicly reachable eGov SSO docs at `e.gov.ph/developers` — this part is real and shared across eGov API products. |
-| API base URL for eGovPay itself | ❌ Placeholder guess (`api.egovpay.gov.ph`) |
-| Resource paths (`/v1/payment_intents`, `/v1/checkout/sessions`, `/v1/refunds`, `/v1/customers`, ...) | ❌ Placeholder, Stripe-shaped guesses |
-| Request/response field names | ❌ Placeholder, Stripe-shaped guesses |
-| Error response shape | ❌ Placeholder (assumes `{ "error": { "code", "message" } }`) |
-| Webhook signature scheme | ❌ Placeholder (assumes HMAC-SHA256 hex digest in an `EGovPay-Signature` header) |
+| OAuth token exchange (`partner_code` / `partner_secret` → bearer token) | Confirmed — matches the public eGov SSO docs |
+| API base URL for eGovPay | Guessed (`api.egovpay.gov.ph`) |
+| Resource paths (`/v1/payment_intents`, `/v1/checkout/sessions`, `/v1/refunds`, `/v1/customers`) | Guessed, Stripe-shaped |
+| Request/response field names | Guessed |
+| Error response shape | Guessed (`{ "error": { "code", "message" } }`) |
+| Webhook signature scheme | Guessed (HMAC-SHA256 hex digest in an `EGovPay-Signature` header) |
 
-Every placeholder is called out with a `[PLACEHOLDER]` comment in code and centralized as much as possible in **[`src/EGovPay.Net/Utils/EGovPayEndpoints.cs`](src/EGovPay.Net/Utils/EGovPayEndpoints.cs)**. Once you get portal access:
+Every guess is flagged with a `[PLACEHOLDER]` comment in the source, and mostly lives in one place: [`Utils/EGovPayEndpoints.cs`](Utils/EGovPayEndpoints.cs). If you get portal access, here's what to fix:
 
-1. Update the constants in `EGovPayEndpoints.cs` (base URL, resource paths, header names).
-2. Fix up the `[JsonPropertyName]` attributes in `Models/**` to match the real schema.
-3. Confirm the OAuth `scope` value for payments (`EGovPayClientOptions.Scope` currently guesses `"EGOVPAY"`).
-4. Confirm whether the payments scope needs an `exchange_code` like the SSO flow does, or is a pure client-credentials grant (`OAuthTokenProvider` already supports both).
-5. Update `WebhookService.Verify` to match the real signing scheme.
-6. Delete this warning. 🙂
+1. Swap the constants in `EGovPayEndpoints.cs` for the real base URL, resource paths, and header names.
+2. Update the `[JsonPropertyName]` attributes in `Models/**` to match the actual schema.
+3. Confirm the OAuth `scope` for payments — `EGovPayClientOptions.Scope` currently defaults to `"EGOVPAY"`, which is a guess.
+4. Check whether the payments scope needs an `exchange_code` like the SSO flow does, or if it's a plain client-credentials grant. `OAuthTokenProvider` supports both already.
+5. Rewrite `WebhookService.Verify` to match the real signing scheme once you know it.
+6. Delete this section.
 
-Treat everything else — the client structure, retry/idempotency handling, pagination shape, testability — as production-quality scaffolding you can build on with confidence.
+Everything else — the client structure, retry/idempotency handling, error mapping — isn't guesswork and should hold up fine on its own.
 
 ## Install
 
-This isn't published to NuGet (yet — see the caveats above). Reference the project directly, or pack it locally:
+Not on NuGet. Reference the project directly, or pack it locally:
 
 ```bash
-dotnet pack src/EGovPay.Net/EGovPay.Net.csproj -c Release
+dotnet pack EGovPay.csproj -c Release
 ```
 
 ## Quickstart
 
 ```csharp
-using EGovPay.Net;
-using EGovPay.Net.Models.Payments;
+using EGovPay;
+using EGovPay.Models.Payments;
 
 var client = new EGovPayClient(new EGovPayClientOptions
 {
@@ -65,7 +65,7 @@ var confirmed = await client.PaymentIntents.ConfirmAsync(intent.Id, new PaymentI
 Console.WriteLine($"Send the payer to: {confirmed.CheckoutUrl}");
 ```
 
-Or the hosted-checkout flow:
+Or hand the whole payment UI to eGovPay with a hosted checkout session:
 
 ```csharp
 var session = await client.CheckoutSessions.CreateAsync(new CheckoutSessionCreateOptions
@@ -78,31 +78,29 @@ var session = await client.CheckoutSessions.CreateAsync(new CheckoutSessionCreat
 Console.WriteLine(session.Url); // redirect the payer here
 ```
 
-See [`samples/EGovPay.Net.Sample/Program.cs`](samples/EGovPay.Net.Sample/Program.cs) for a full walkthrough, including refunds and webhook handling.
+A more complete walkthrough (refunds, webhook handling) is in [`Examples/Sample.cs`](Examples/Sample.cs).
 
-## Design overview
+## How it's laid out
 
 ```
-src/EGovPay.Net/
-  EGovPayClient.cs           Entry point; owns the HttpClient + token cache, exposes resource services
-  EGovPayClientOptions.cs    Configuration (credentials, environment, retries, webhook secret)
-  Auth/                      OAuth token exchange + caching against oauth.e.gov.ph
-  Http/                      Low-level transport: retries, idempotency keys, error → exception mapping
-  Models/                    Request/response POCOs, grouped by resource
-  Services/                  One class per resource (PaymentIntents, CheckoutSessions, Refunds, Customers, Webhooks)
-  Exceptions/                EGovPayException hierarchy
-  Utils/                     EGovPayEndpoints (the placeholder registry), query-string helpers
-samples/EGovPay.Net.Sample/  Runnable console sample
-tests/EGovPay.Net.Tests/     xUnit tests (currently cover webhook signature verification)
+EGovPayClient.cs           Entry point; owns the HttpClient + token cache, exposes the resource services
+EGovPayClientOptions.cs    Configuration (credentials, environment, retries, webhook secret)
+Auth/                      OAuth token exchange + caching against oauth.e.gov.ph
+Http/                      Transport layer: retries, idempotency keys, error → exception mapping
+Models/                    Request/response POCOs, grouped by resource
+Services/                  One class per resource (PaymentIntents, CheckoutSessions, Refunds, Customers, Webhooks)
+Exceptions/                EGovPayException hierarchy
+Utils/                     EGovPayEndpoints (the placeholder registry) and query-string helpers
+Examples/                  Runnable console sample
 ```
 
 ### Retries & idempotency
 
-Mutating requests (`POST`/`DELETE`) automatically attach an `Idempotency-Key` header (a fresh GUID per logical call, reused across retries of that same call) so a network blip can't double-create a payment. Transient failures (`429`, `5xx`, connection errors) are retried with exponential backoff up to `EGovPayClientOptions.MaxNetworkRetries` (default 2).
+`POST`/`DELETE` requests get an `Idempotency-Key` header — a fresh GUID per logical call, reused across retries of that same call — so a network blip can't double-create a payment. Transient failures (`429`, `5xx`, connection errors) are retried with exponential backoff, up to `EGovPayClientOptions.MaxNetworkRetries` (default 2).
 
 ### Errors
 
-All non-2xx responses raise `EGovPayApiException` with the HTTP status, raw response body, and a best-effort parsed error code/message. Auth failures during the OAuth exchange raise `EGovPayAuthenticationException`.
+Non-2xx responses raise `EGovPayApiException`, with the HTTP status, raw response body, and a best-effort parsed error code/message. Failures during the OAuth exchange raise `EGovPayAuthenticationException` instead.
 
 ### Webhooks
 
@@ -115,11 +113,11 @@ if (evt.Type == "payment_intent.succeeded")
 }
 ```
 
-`ConstructWebhookEvent` throws `EGovPayException` if the signature is missing or doesn't match — **again, the signing scheme itself is a placeholder** until confirmed.
+`ConstructWebhookEvent` throws `EGovPayException` if the signature is missing or doesn't match. Again — the signing scheme itself is unconfirmed, so treat this as a starting point, not a guarantee.
 
-## Why not just guess less?
+## Why bother shipping placeholders instead of waiting for real docs?
 
-An earlier draft of this README could have shipped zero payment-specific code and just said "go read the docs." Instead, this scaffold gives you a working OAuth layer (the one part that's genuinely confirmed), a Stripe-familiar shape to slot the real schema into, and tests/samples that already exercise the plumbing — so once you have portal access, the remaining work is filling in field names, not architecting a client from scratch.
+Because the OAuth layer is real and shared across every eGov API product, and the plumbing around it (retries, idempotency, error mapping, a Stripe-familiar shape) doesn't change once the actual payment schema shows up. This gets you that plumbing today, so the remaining work when you get portal access is filling in field names, not building a client from scratch.
 
 ## License
 

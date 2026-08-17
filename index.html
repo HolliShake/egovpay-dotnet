@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EGovPay.Net — unofficial .NET client for eGovPay</title>
+<meta name="description" content="An unofficial .NET client library for the eGovPay government payment gateway, shaped after the Stripe .NET SDK." />
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #11141b;
+    --bg-card: #151922;
+    --border: #232833;
+    --text: #e6e9ef;
+    --text-dim: #9aa4b2;
+    --text-faint: #667085;
+    --accent: #6ee7b7;
+    --accent-2: #60a5fa;
+    --warn: #fbbf24;
+    --danger: #fb7185;
+    --code-bg: #0d1017;
+    --radius: 14px;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  [data-theme="light"] {
+    --bg: #f7f8fa;
+    --bg-elevated: #ffffff;
+    --bg-card: #ffffff;
+    --border: #e3e6eb;
+    --text: #1a1f29;
+    --text-dim: #4b5563;
+    --text-faint: #8a94a3;
+    --accent: #0f9d67;
+    --accent-2: #2563eb;
+    --code-bg: #0d1017;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 0.1em 0.4em;
+    border-radius: 5px;
+  }
+
+  pre {
+    margin: 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+
+  /* --- layout --- */
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  header.top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(10px);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 3px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  nav.links { display: flex; gap: 22px; font-size: 14px; }
+  nav.links a { color: var(--text-dim); }
+  nav.links a:hover { color: var(--text); text-decoration: none; }
+
+  .theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-dim);
+    border-radius: 999px;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 15px;
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--text-faint); }
+
+  /* --- hero --- */
+  .hero { padding: 88px 0 56px; }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin-bottom: 22px;
+  }
+  h1.title {
+    font-size: clamp(2.1rem, 5vw, 3.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    margin: 0 0 18px;
+  }
+  h1.title .grad {
+    background: linear-gradient(100deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  p.lede {
+    font-size: 1.12rem;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin: 0 0 32px;
+  }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 44px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--text); color: var(--bg); }
+  .btn-primary:hover { opacity: 0.88; text-decoration: none; }
+  .btn-ghost { background: var(--bg-elevated); color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--text-faint); text-decoration: none; }
+
+  .install-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    max-width: 560px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: #d1d5db;
+  }
+  .install-box button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--sans);
+    flex-shrink: 0;
+  }
+  .install-box button:hover { color: var(--text); }
+
+  /* --- status table --- */
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  section:first-of-type { border-top: none; }
+  h2 {
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+  }
+  p.section-sub { color: var(--text-dim); margin: 0 0 28px; max-width: 640px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-faint); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:last-child td { border-bottom: none; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .pill-ok { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .pill-guess { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+
+  /* --- cards --- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 15px; }
+  .card p { margin: 0; color: var(--text-dim); font-size: 13.8px; }
+  .card .icon { font-size: 20px; margin-bottom: 10px; display: block; }
+
+  /* --- tabs --- */
+  .tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 9px 4px;
+    margin-right: 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: var(--sans);
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent-2); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* --- syntax colors (manual spans) --- */
+  .tok-kw { color: #c792ea; }
+  .tok-type { color: #82aaff; }
+  .tok-str { color: #c3e88d; }
+  .tok-com { color: #676e95; font-style: italic; }
+  .tok-fn { color: #ffcb6b; }
+  .tok-num { color: #f78c6c; }
+
+  /* --- file tree --- */
+  .tree {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    color: #d1d5db;
+    overflow-x: auto;
+  }
+  .tree .comment { color: var(--text-faint); }
+  .tree .path { color: var(--accent-2); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 36px 0 60px;
+    color: var(--text-faint);
+    font-size: 13.5px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  footer a { color: var(--text-dim); }
+
+  @media (max-width: 640px) {
+    nav.links { display: none; }
+    .install-box { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap topbar">
+    <div class="brand"><span class="dot"></span> EGovPay.Net</div>
+    <nav class="links">
+      <a href="#status">Status</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#layout">Layout</a>
+      <a href="#webhooks">Webhooks</a>
+      <a href="https://github.com/HolliShake/egovpay-dotnet">GitHub</a>
+    </nav>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <span class="kicker">⚠ unofficial &amp; not fully verified — read the status section</span>
+    <h1 class="title">A <span class="grad">Stripe-shaped</span> .NET client<br/>for eGovPay</h1>
+    <p class="lede">
+      A community-built C# SDK for the Philippine government payment gateway — one client,
+      resource-scoped services, typed models, retries, and webhook verification. The OAuth layer
+      is real. The payment endpoints are educated guesses until eGovPay's docs are public.
+    </p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#quickstart">Get started</a>
+      <a class="btn btn-ghost" href="https://github.com/HolliShake/egovpay-dotnet">View source</a>
+    </div>
+
+    <div class="install-box">
+      <span>dotnet pack EGovPay.csproj -c Release</span>
+      <button onclick="copyInstall(this)">Copy</button>
+    </div>
+  </section>
+
+  <section id="status">
+    <h2>What's real vs. guessed</h2>
+    <p class="section-sub">
+      eGovPay gates its API reference behind a developer-portal approval process, so most of the
+      resource-level detail below is a Stripe-shaped placeholder, not a verified fact.
+    </p>
+    <table>
+      <thead><tr><th>Piece</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>OAuth token exchange (<code>partner_code</code> / <code>partner_secret</code>)</td><td><span class="pill pill-ok">Confirmed</span></td></tr>
+        <tr><td>API base URL for eGovPay</td><td><span class="pill pill-guess">Guessed</span></td></tr>
+        <tr><td>Resource paths (payment intents, checkout, refunds, customers)</td><td><span class="pill pill-guess">Guessed</span></td></tr>
+        <tr><td>Request / response field names</td><td><span class="pill pill-guess">Guessed</span></td></tr>
+        <tr><td>Error response shape</td><td><span class="pill pill-guess">Guessed</span></td></tr>
+        <tr><td>Webhook signature scheme</td><td><span class="pill pill-guess">Guessed</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="quickstart">
+    <h2>Quickstart</h2>
+    <p class="section-sub">Direct PaymentIntent control, or hand the whole UI to eGovPay with a hosted checkout session.</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="intent">PaymentIntent</button>
+      <button class="tab-btn" data-tab="checkout">Checkout Session</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-intent">
+<pre><code><span class="tok-kw">using</span> EGovPay;
+<span class="tok-kw">using</span> EGovPay.Models.Payments;
+
+<span class="tok-kw">var</span> client = <span class="tok-kw">new</span> <span class="tok-type">EGovPayClient</span>(<span class="tok-kw">new</span> <span class="tok-type">EGovPayClientOptions</span>
+{
+    PartnerCode = <span class="tok-str">"YOUR_PARTNER_CODE"</span>,
+    PartnerSecret = <span class="tok-str">"YOUR_PARTNER_SECRET"</span>,
+    Environment = EGovPayEnvironment.Sandbox,
+});
+
+<span class="tok-kw">var</span> intent = <span class="tok-kw">await</span> client.PaymentIntents.<span class="tok-fn">CreateAsync</span>(<span class="tok-kw">new</span> <span class="tok-type">PaymentIntentCreateOptions</span>
+{
+    Amount = <span class="tok-num">150000</span>, <span class="tok-com">// PHP 1,500.00, in centavos</span>
+    Description = <span class="tok-str">"Business Permit Renewal - BR-2026-00123"</span>,
+    ReferenceNumber = <span class="tok-str">"BR-2026-00123"</span>,
+    AllowedPaymentChannels = <span class="tok-kw">new</span>() { PaymentChannel.GCash, PaymentChannel.Card },
+});
+
+<span class="tok-kw">var</span> confirmed = <span class="tok-kw">await</span> client.PaymentIntents.<span class="tok-fn">ConfirmAsync</span>(intent.Id, <span class="tok-kw">new</span> <span class="tok-type">PaymentIntentConfirmOptions</span>
+{
+    PaymentChannel = PaymentChannel.GCash,
+});
+
+Console.<span class="tok-fn">WriteLine</span>(<span class="tok-str">$"Send the payer to: {confirmed.CheckoutUrl}"</span>);</code></pre>
+    </div>
+
+    <div class="tab-panel" id="tab-checkout">
+<pre><code><span class="tok-kw">var</span> session = <span class="tok-kw">await</span> client.CheckoutSessions.<span class="tok-fn">CreateAsync</span>(<span class="tok-kw">new</span> <span class="tok-type">CheckoutSessionCreateOptions</span>
+{
+    Amount = <span class="tok-num">150000</span>,
+    SuccessUrl = <span class="tok-str">"https://your-agency-portal.gov.ph/payments/success"</span>,
+    CancelUrl = <span class="tok-str">"https://your-agency-portal.gov.ph/payments/cancel"</span>,
+});
+
+Console.<span class="tok-fn">WriteLine</span>(session.Url); <span class="tok-com">// redirect the payer here</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Built-in plumbing</h2>
+    <p class="section-sub">The parts of this SDK that don't depend on eGovPay's undocumented schema.</p>
+    <div class="grid">
+      <div class="card">
+        <span class="icon">🔁</span>
+        <h3>Retries &amp; idempotency</h3>
+        <p>Mutating requests get a stable <code>Idempotency-Key</code> reused across retries. Transient failures back off exponentially, up to <code>MaxNetworkRetries</code>.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🧯</span>
+        <h3>Typed errors</h3>
+        <p><code>EGovPayApiException</code> for non-2xx responses, <code>EGovPayAuthenticationException</code> for OAuth failures — both carry the raw response.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🔐</span>
+        <h3>Real OAuth</h3>
+        <p>Partner-code/secret exchange against the shared eGov API OAuth host — the one part of this SDK verified against public docs.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🧩</span>
+        <h3>Stripe-familiar shape</h3>
+        <p>Resource services, options objects, and a single entry-point client — if you've used Stripe.net, this will feel familiar immediately.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="layout">
+    <h2>How it's laid out</h2>
+    <div class="tree">
+<span class="path">EGovPayClient.cs</span>           <span class="comment">Entry point; owns the HttpClient + token cache</span>
+<span class="path">EGovPayClientOptions.cs</span>    <span class="comment">Configuration (credentials, environment, retries, webhook secret)</span>
+<span class="path">Auth/</span>                      <span class="comment">OAuth token exchange + caching against oauth.e.gov.ph</span>
+<span class="path">Http/</span>                      <span class="comment">Transport layer: retries, idempotency keys, error mapping</span>
+<span class="path">Models/</span>                    <span class="comment">Request/response POCOs, grouped by resource</span>
+<span class="path">Services/</span>                  <span class="comment">One class per resource (PaymentIntents, CheckoutSessions, Refunds, ...)</span>
+<span class="path">Exceptions/</span>                <span class="comment">EGovPayException hierarchy</span>
+<span class="path">Utils/</span>                     <span class="comment">EGovPayEndpoints (the placeholder registry), query-string helpers</span>
+<span class="path">Examples/</span>                  <span class="comment">Runnable console sample</span>
+    </div>
+  </section>
+
+  <section id="webhooks">
+    <h2>Webhooks</h2>
+    <p class="section-sub">Mirrors Stripe.net's <code>EventUtility.ConstructEvent</code>. The signing scheme itself is unconfirmed — treat this as a starting point.</p>
+<pre><code><span class="tok-kw">var</span> evt = client.<span class="tok-fn">ConstructWebhookEvent</span>(rawRequestBody, request.Headers[<span class="tok-str">"EGovPay-Signature"</span>]);
+<span class="tok-kw">if</span> (evt.Type == <span class="tok-str">"payment_intent.succeeded"</span>)
+{
+    <span class="tok-kw">var</span> intent = evt.Data.<span class="tok-fn">GetObject</span>&lt;<span class="tok-type">PaymentIntent</span>&gt;();
+    <span class="tok-com">// ...</span>
+}</code></pre>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <span>MIT licensed. Not affiliated with or endorsed by the Philippine DICT, eGovPH, or eGovPay.</span>
+  <a href="https://github.com/HolliShake/egovpay-dotnet">github.com/HolliShake/egovpay-dotnet</a>
+</footer>
+
+<script>
+  const toggle = document.getElementById('themeToggle');
+  const root = document.documentElement;
+  function applyTheme(t) {
+    root.setAttribute('data-theme', t);
+    toggle.textContent = t === 'light' ? '☀️' : '🌙';
+    localStorage.setItem('egovpay-theme', t);
+  }
+  applyTheme(localStorage.getItem('egovpay-theme') || 'dark');
+  toggle.addEventListener('click', () => {
+    applyTheme(root.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  function copyInstall(btn) {
+    navigator.clipboard.writeText('dotnet pack EGovPay.csproj -c Release').then(() => {
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = original, 1500);
+    });
+  }
+</script>
+
+</body>
+</html>

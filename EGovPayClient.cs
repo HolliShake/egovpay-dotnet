@@ -16,14 +16,18 @@ namespace EGovPay;
 /// });
 ///
 /// var txn = await client.Transactions.CreateAsync(new TransactionCreateOptions
-/// {
-///     TxnId = "BR-2026-00123",
-///     Amount = "1500",
-///     Items = new() { new TransactionItem { Name = "Business Permit Renewal", Amount = "1500" } },
-///     SettlementTemplateUuid = "YOUR_SETTLEMENT_TEMPLATE_UUID",
-///     RedirectUrl = "https://your-agency-portal.gov.ph/payments/return",
-///     CallbackUrl = "https://your-agency-portal.gov.ph/payments/callback",
-/// });
+///     {
+///         TxnId = "USTP-ABCDEFG-2026-00123",
+///         Items = [new TransactionItem { Name = "Item # 1", Amount = 1000.00 }],
+///         SettlementTemplateUuid = Guid.NewGuid().ToString(),
+///         RedirectUrl = "https://localhost:8001/",
+///         CallbackUrl = "https://localhost:8000/callback",
+///         Mobile = "+639455477865",
+///         Email = "redondophilippandrewroa.dev@gmail.com",
+///         Name = "TEST",
+///         ExpiresAt = DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd HH:mm:ss"),
+///         LinkExpiresAt = DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd HH:mm:ss"),
+///     });
 /// </code>
 /// </summary>
 public sealed class EGovPayClient : IDisposable

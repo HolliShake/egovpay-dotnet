@@ -1,7 +1,7 @@
 namespace EGovPay.Exceptions;
 
-/// <summary>Base type for every exception this SDK throws.</summary>
-public class EGovPayAuthenticationException : Exception
+/// <summary>Thrown when the eGovPay API rejects the configured <c>X-eGovPay-Token</c> (HTTP 401/403).</summary>
+public sealed class EGovPayAuthenticationException : EGovPayException
 {
     public EGovPayAuthenticationException(string message) : base(message) { }
 

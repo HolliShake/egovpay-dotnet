@@ -2,24 +2,23 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using EGovPay.Auth;
 using EGovPay.Exceptions;
 using EGovPay.Utils;
 
 namespace EGovPay.Http;
 
 /// <summary>
-/// Default <see cref="IEGovPayHttpClient"/> implementation: attaches OAuth
-/// bearer auth, retries transient failures with exponential backoff, and
-/// translates non-2xx responses into <see cref="EGovPayApiException"/>.
+/// Default <see cref="IEGovPayHttpClient"/> implementation: attaches the
+/// <c>X-eGovPay-Token</c> header, retries transient failures with exponential
+/// backoff, and translates non-2xx responses into <see cref="EGovPayApiException"/>
+/// (or <see cref="EGovPayAuthenticationException"/> for 401/403).
 /// </summary>
 public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
 {
     private readonly HttpClient _httpClient;
-    private readonly IOAuthTokenProvider _tokenProvider;
     private readonly string _baseUrl;
+    private readonly string _apiToken;
     private readonly int _maxNetworkRetries;
-    private readonly bool _enableIdempotencyKeys;
     private readonly bool _ownsHttpClient;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -30,16 +29,14 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
 
     public EGovPayHttpClient(
         string baseUrl,
-        IOAuthTokenProvider tokenProvider,
+        string apiToken,
         int maxNetworkRetries,
-        bool enableIdempotencyKeys,
         TimeSpan timeout,
         HttpClient? httpClient = null)
     {
         _baseUrl = baseUrl.TrimEnd('/');
-        _tokenProvider = tokenProvider;
+        _apiToken = apiToken;
         _maxNetworkRetries = Math.Max(0, maxNetworkRetries);
-        _enableIdempotencyKeys = enableIdempotencyKeys;
         _ownsHttpClient = httpClient is null;
         _httpClient = httpClient ?? new HttpClient();
         _httpClient.Timeout = timeout;
@@ -53,35 +50,25 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
         HttpContent? content = body is null
             ? null
             : new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
-        return SendAsync<TResponse>(HttpMethod.Post, path, content, options, isMutating: true);
+        return SendAsync<TResponse>(HttpMethod.Post, path, content, options);
     }
 
-    public Task<TResponse> PostFormAsync<TResponse>(string path, IDictionary<string, string> form, RequestOptions? options = null)
+    public Task<TResponse> PutAsync<TResponse>(string path, object? body, RequestOptions? options = null)
     {
-        HttpContent content = new FormUrlEncodedContent(form);
-        return SendAsync<TResponse>(HttpMethod.Post, path, content, options, isMutating: true);
+        HttpContent? content = body is null
+            ? null
+            : new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+        return SendAsync<TResponse>(HttpMethod.Put, path, content, options);
     }
-
-    public Task<TResponse> DeleteAsync<TResponse>(string path, RequestOptions? options = null) =>
-        SendAsync<TResponse>(HttpMethod.Delete, path, content: null, options, isMutating: true);
 
     private async Task<TResponse> SendAsync<TResponse>(
         HttpMethod method,
         string path,
         HttpContent? content,
-        RequestOptions? options,
-        bool isMutating = false)
+        RequestOptions? options)
     {
         var cancellationToken = options?.CancellationToken ?? default;
         var url = _baseUrl + path;
-
-        // Idempotency key: reuse the same one across retries of the *same* logical
-        // call so a network retry can't double-create a payment on eGovPay's side.
-        string? idempotencyKey = null;
-        if (isMutating && _enableIdempotencyKeys)
-        {
-            idempotencyKey = options?.IdempotencyKey ?? Guid.NewGuid().ToString("N");
-        }
 
         Exception? lastError = null;
 
@@ -100,15 +87,9 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
                 request.Content = await CloneContentAsync(content, cancellationToken).ConfigureAwait(false);
             }
 
-            var accessToken = await _tokenProvider.GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.TryAddWithoutValidation(EGovPayEndpoints.TokenHeaderName, _apiToken);
             request.Headers.UserAgent.TryParseAdd(EGovPayEndpoints.SdkUserAgent);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            if (idempotencyKey is not null)
-            {
-                request.Headers.TryAddWithoutValidation(EGovPayEndpoints.IdempotencyHeaderName, idempotencyKey);
-            }
 
             if (options?.ExtraHeaders is not null)
             {
@@ -130,17 +111,11 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            Console.WriteLine($"HTTP {(int)response.StatusCode} {response.ReasonPhrase}: {body}");
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
-                // Token might have been revoked/expired server-side ahead of our
-                // local clock; force a refresh and retry once more if budget allows.
-                _tokenProvider.Invalidate();
-                if (attempt < _maxNetworkRetries)
-                {
-                    lastError = BuildApiException(response.StatusCode, body);
-                    continue;
-                }
+                throw new EGovPayAuthenticationException(
+                    $"eGovPay rejected the configured {EGovPayEndpoints.TokenHeaderName} (HTTP {(int)response.StatusCode}). Response: {body}");
             }
 
             if (IsRetryable(response.StatusCode) && attempt < _maxNetworkRetries)
@@ -190,14 +165,12 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
     }
 
     /// <summary>
-    /// [PLACEHOLDER] Best-effort parse of eGovPay's error response shape.
-    /// Assumes a Stripe-like `{ "error": { "code": "...", "message": "..." } }`
-    /// envelope with a couple of fallbacks; update once the real schema is known.
+    /// The docs don't publish an error response schema, so this best-effort
+    /// parses a couple of common shapes (<c>{"message": "..."}</c>,
+    /// <c>{"error": "..."}</c>) and otherwise falls back to the raw body.
     /// </summary>
     private static EGovPayApiException BuildApiException(HttpStatusCode statusCode, string body)
     {
-        string? code = null;
-        string? requestId = null;
         string message = $"eGovPay API request failed with HTTP {(int)statusCode}.";
 
         try
@@ -205,26 +178,13 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
 
-            if (root.TryGetProperty("error", out var errorEl))
+            if (root.TryGetProperty("message", out var msgEl) && msgEl.ValueKind == JsonValueKind.String)
             {
-                if (errorEl.ValueKind == JsonValueKind.Object)
-                {
-                    if (errorEl.TryGetProperty("message", out var msgEl)) message = msgEl.GetString() ?? message;
-                    if (errorEl.TryGetProperty("code", out var codeEl)) code = codeEl.GetString();
-                }
-                else if (errorEl.ValueKind == JsonValueKind.String)
-                {
-                    message = errorEl.GetString() ?? message;
-                }
+                message = msgEl.GetString() ?? message;
             }
-            else if (root.TryGetProperty("message", out var topLevelMsg))
+            else if (root.TryGetProperty("error", out var errorEl) && errorEl.ValueKind == JsonValueKind.String)
             {
-                message = topLevelMsg.GetString() ?? message;
-            }
-
-            if (root.TryGetProperty("request_id", out var reqIdEl))
-            {
-                requestId = reqIdEl.GetString();
+                message = errorEl.GetString() ?? message;
             }
         }
         catch (JsonException)
@@ -236,7 +196,7 @@ public sealed class EGovPayHttpClient : IEGovPayHttpClient, IDisposable
             }
         }
 
-        return new EGovPayApiException(statusCode, body, message, code, requestId);
+        return new EGovPayApiException(statusCode, body, message);
     }
 
     public void Dispose()

@@ -7,7 +7,5 @@ public interface IEGovPayHttpClient
 
     Task<TResponse> PostAsync<TResponse>(string path, object? body, RequestOptions? options = null);
 
-    Task<TResponse> PostFormAsync<TResponse>(string path, IDictionary<string, string> form, RequestOptions? options = null);
-
-    Task<TResponse> DeleteAsync<TResponse>(string path, RequestOptions? options = null);
+    Task<TResponse> PutAsync<TResponse>(string path, object? body, RequestOptions? options = null);
 }
